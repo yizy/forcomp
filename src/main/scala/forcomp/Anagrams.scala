@@ -21,7 +21,8 @@ object Anagrams {
    *  Note: If the frequency of some character is zero, then that character should not be
    *  in the list.
    */
-  type Occurrences = List[(Char, Int)]
+  type Occurrence = (Char, Int)
+  type Occurrences = List[Occurrence]
 
   /** The dictionary is simply a sequence of words.
    *  It is predefined and obtained as a sequence using the utility method `loadDictionary`.
@@ -33,10 +34,12 @@ object Anagrams {
    *  Note: the uppercase and lowercase version of the character are treated as the
    *  same character, and are represented as a lowercase character in the occurrence list.
    */
-  def wordOccurrences(w: Word): Occurrences = ???
+  def wordOccurrences(w: Word): Occurrences = {
+    w.toLowerCase.groupBy(c => c).map(t => (t._1, t._2.length)).toList.sortWith(_._1 < _._1)
+  }
 
   /** Converts a sentence into its character occurrence list. */
-  def sentenceOccurrences(s: Sentence): Occurrences = ???
+  def sentenceOccurrences(s: Sentence): Occurrences = wordOccurrences(s.mkString)
 
   /** The `dictionaryByOccurrences` is a `Map` from different occurrences to a sequence of all
    *  the words that have that occurrence count.
@@ -53,10 +56,10 @@ object Anagrams {
    *    List(('a', 1), ('e', 1), ('t', 1)) -> Seq("ate", "eat", "tea")
    *
    */
-  lazy val dictionaryByOccurrences: Map[Occurrences, List[Word]] = ???
+  lazy val dictionaryByOccurrences: Map[Occurrences, List[Word]] = dictionary.groupBy(w => wordOccurrences(w)) + (List() -> List())
 
   /** Returns all the anagrams of a given word. */
-  def wordAnagrams(word: Word): List[Word] = ???
+  def wordAnagrams(word: Word): List[Word] = dictionaryByOccurrences.getOrElse(wordOccurrences(word), Nil)
 
   /** Returns the list of all subsets of the occurrence list.
    *  This includes the occurrence itself, i.e. `List(('k', 1), ('o', 1))`
@@ -80,7 +83,17 @@ object Anagrams {
    *  Note that the order of the occurrence list subsets does not matter -- the subsets
    *  in the example above could have been displayed in some other order.
    */
-  def combinations(occurrences: Occurrences): List[Occurrences] = ???
+  def combinations(occurrences: Occurrences): List[Occurrences] = {
+    def tail(list: List[Occurrences], c: Char, i: Int): List[Occurrences] = {
+      for {
+        o <- list
+        j <- 1 to i
+      } yield (c, j) :: o
+    }
+    occurrences.foldRight(List[Occurrences](Nil)){
+      case ((c, i), l) => l ::: tail(l, c, i)
+    }
+  }
 
   /** Subtracts occurrence list `y` from occurrence list `x`.
    * 
@@ -92,7 +105,14 @@ object Anagrams {
    *  Note: the resulting value is an occurrence - meaning it is sorted
    *  and has no zero-entries.
    */
-  def subtract(x: Occurrences, y: Occurrences): Occurrences = ???
+  def subtract(x: Occurrences, y: Occurrences): Occurrences = {
+    val map = y.toMap
+    x.foldRight(List[Occurrence]()) {
+      case ((c, i), l) =>
+        val j = i - map.getOrElse(c, 0)
+        if (j > 0) (c, j) :: l else l
+    }
+  }
 
   /** Returns a list of all anagram sentences of the given sentence.
    *  
@@ -134,6 +154,29 @@ object Anagrams {
    *
    *  Note: There is only one anagram of an empty sentence.
    */
-  def sentenceAnagrams(sentence: Sentence): List[Sentence] = ???
+  def sentenceAnagrams(sentence: Sentence): List[Sentence] = {
+    def impl(occurrences: Occurrences): List[Sentence] = {
+      if (occurrences.isEmpty) List(Nil)
+      else {
+        for {
+          o <- combinations(occurrences)
+          word <- dictionaryByOccurrences.getOrElse(o, Nil)
+          rest <- impl(subtract(occurrences, o))
+        } yield word :: rest
+      }
+    }
+    impl(sentenceOccurrences(sentence))
+  }
+}
 
+object Test extends App {
+  println(Anagrams.wordOccurrences("Thereisonlyoneanagramofanemptysentence"))
+  println(Anagrams.sentenceOccurrences(List("There", "is", "only", "one", "anagram", "of", "an", "empty", "sentence")))
+//  println(Anagrams.dictionaryByOccurrences)
+//  println(Anagrams.combinations(List(('a',4), ('c',1), ('e',7), ('f',1), ('g',1), ('h',1), ('i',1), ('l',1), ('m',2), ('n',6), ('o',3), ('p',1), ('r',2), ('s',2), ('t',3), ('y',2))))
+  Anagrams.combinations(List(('a',2), ('b',2))).foreach(println)
+  Anagrams.combinations(Anagrams.sentenceOccurrences(List("Yes", "man"))).foreach(println)
+
+  println(Anagrams.subtract(List(('a', 2), ('b', 2), ('c', 3)), List(('a', 2), ('b', 1))))
+  Anagrams.sentenceAnagrams(List("yes", "man")).foreach(println)
 }

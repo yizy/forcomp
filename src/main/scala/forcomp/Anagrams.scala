@@ -56,7 +56,7 @@ object Anagrams {
    *    List(('a', 1), ('e', 1), ('t', 1)) -> Seq("ate", "eat", "tea")
    *
    */
-  lazy val dictionaryByOccurrences: Map[Occurrences, List[Word]] = dictionary.groupBy(w => wordOccurrences(w)) + (List() -> List())
+  lazy val dictionaryByOccurrences: Map[Occurrences, List[Word]] = dictionary.groupBy(wordOccurrences)
 
   /** Returns all the anagrams of a given word. */
   def wordAnagrams(word: Word): List[Word] = dictionaryByOccurrences.getOrElse(wordOccurrences(word), Nil)
@@ -84,15 +84,13 @@ object Anagrams {
    *  in the example above could have been displayed in some other order.
    */
   def combinations(occurrences: Occurrences): List[Occurrences] = {
-    def tail(list: List[Occurrences], c: Char, i: Int): List[Occurrences] = {
+    def newSubsets(list: List[Occurrences], o: Occurrence): List[Occurrences] = {
       for {
-        o <- list
-        j <- 1 to i
-      } yield (c, j) :: o
+        os <- list
+        j <- 1 to o._2
+      } yield (o._1, j) :: os
     }
-    occurrences.foldRight(List[Occurrences](Nil)){
-      case ((c, i), l) => l ::: tail(l, c, i)
-    }
+    occurrences.foldRight(List[Occurrences](Nil))((o, l) => l ::: newSubsets(l, o))
   }
 
   /** Subtracts occurrence list `y` from occurrence list `x`.
@@ -107,11 +105,10 @@ object Anagrams {
    */
   def subtract(x: Occurrences, y: Occurrences): Occurrences = {
     val map = y.toMap
-    x.foldRight(List[Occurrence]()) {
-      case ((c, i), l) =>
-        val j = i - map.getOrElse(c, 0)
-        if (j > 0) (c, j) :: l else l
-    }
+    x.foldRight(List[Occurrence]())((o, l) => {
+      val j = o._2 - map.getOrElse(o._1, 0)
+      if (j <= 0) l else (o._1, j) :: l
+    })
   }
 
   /** Returns a list of all anagram sentences of the given sentence.
@@ -156,12 +153,11 @@ object Anagrams {
    */
   def sentenceAnagrams(sentence: Sentence): List[Sentence] = {
     def impl(occurrences: Occurrences): List[Sentence] = {
-      if (occurrences.isEmpty) List(Nil)
-      else {
+      if (occurrences.isEmpty) List(Nil) else {
         for {
-          o <- combinations(occurrences)
-          word <- dictionaryByOccurrences.getOrElse(o, Nil)
-          rest <- impl(subtract(occurrences, o))
+          os <- combinations(occurrences)
+          word <- dictionaryByOccurrences.getOrElse(os, Nil)
+          rest <- impl(subtract(occurrences, os))
         } yield word :: rest
       }
     }
